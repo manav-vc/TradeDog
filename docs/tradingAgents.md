@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="assets/TauricResearch.png" style="width: 60%; height: auto;">
+  <img src="../assets/TauricResearch.png" style="width: 60%; height: auto;">
 </p>
 
 <div align="center" style="line-height: 1;">
   <a href="https://arxiv.org/abs/2412.20138" target="_blank"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2412.20138-B31B1B?logo=arxiv"/></a>
   <a href="https://discord.com/invite/hk9PGKShPK" target="_blank"><img alt="Discord" src="https://img.shields.io/badge/Discord-TradingResearch-7289da?logo=discord&logoColor=white&color=7289da"/></a>
-  <a href="./assets/wechat.png" target="_blank"><img alt="WeChat" src="https://img.shields.io/badge/WeChat-TauricResearch-brightgreen?logo=wechat&logoColor=white"/></a>
+  <a href="./../assets/wechat.png" target="_blank"><img alt="WeChat" src="https://img.shields.io/badge/WeChat-TauricResearch-brightgreen?logo=wechat&logoColor=white"/></a>
   <a href="https://x.com/TauricResearch" target="_blank"><img alt="X Follow" src="https://img.shields.io/badge/X-TauricResearch-white?logo=x&logoColor=white"/></a>
   <br>
   <a href="https://github.com/TauricResearch/" target="_blank"><img alt="Community" src="https://img.shields.io/badge/Join_GitHub_Community-TauricResearch-14C290?logo=discourse"/></a>
@@ -56,7 +56,7 @@
 TradingAgents is a multi-agent trading framework that mirrors the dynamics of real-world trading firms. By deploying specialized LLM-powered agents: from fundamental analysts, sentiment experts, and technical analysts, to trader, risk management team, the platform collaboratively evaluates market conditions and informs trading decisions. Moreover, these agents engage in dynamic discussions to pinpoint the optimal strategy.
 
 <p align="center">
-  <img src="assets/schema.png" style="width: 100%; height: auto;">
+  <img src="../../assets/schema.png" style="width: 100%; height: auto;">
 </p>
 
 > TradingAgents framework is designed for research purposes. Trading performance may vary based on many factors, including the chosen backbone language models, model temperature, trading periods, the quality of data, and other non-deterministic factors. [It is not intended as financial, investment, or trading advice.](https://tauric.ai/disclaimer/)
@@ -70,21 +70,21 @@ Our framework decomposes complex trading tasks into specialized roles. This ensu
 - Technical Analyst: Utilizes technical indicators (like MACD and RSI) to detect trading patterns and forecast price movements.
 
 <p align="center">
-  <img src="assets/analyst.png" width="100%" style="display: inline-block; margin: 0 2%;">
+  <img src="../../assets/analyst.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 ### Researcher Team
 - Comprises both bullish and bearish researchers who critically assess the insights provided by the Analyst Team. Through structured debates, they balance potential gains against inherent risks.
 
 <p align="center">
-  <img src="assets/researcher.png" width="70%" style="display: inline-block; margin: 0 2%;">
+  <img src="../assets/researcher.png" width="70%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 ### Trader Agent
 - Composes reports from the analysts and researchers to make informed trading decisions. It determines the timing and magnitude of trades based on comprehensive market insights.
 
 <p align="center">
-  <img src="assets/trader.png" width="70%" style="display: inline-block; margin: 0 2%;">
+  <img src="../assets/trader.png" width="70%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 ### Risk Management and Portfolio Manager
@@ -92,7 +92,7 @@ Our framework decomposes complex trading tasks into specialized roles. This ensu
 - The Portfolio Manager approves/rejects the transaction proposal. If approved, the order will be sent to the simulated exchange and executed.
 
 <p align="center">
-  <img src="assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
+  <img src="../assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 ## Installation and CLI
@@ -145,17 +145,17 @@ python -m cli.main
 You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
 
 <p align="center">
-  <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
+  <img src="../assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 An interface will appear showing results as they load, letting you track the agent's progress as it runs.
 
 <p align="center">
-  <img src="assets/cli/cli_news.png" width="100%" style="display: inline-block; margin: 0 2%;">
+  <img src="../assets/cli/cli_news.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 <p align="center">
-  <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
+  <img src="../assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 ## TradingAgents Package
