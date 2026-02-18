@@ -1,1 +1,0 @@
-2026-02-16: decided to use yfinance + Polygon instead of only Polygon because of rate limits
