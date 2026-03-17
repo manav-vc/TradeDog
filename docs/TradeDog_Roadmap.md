@@ -50,7 +50,6 @@ For code snippets, schemas, and architecture patterns see [design_reference.md](
 | --- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | 0.1 | Read all files under `tradingagents/` top to bottom                          | `tradingagents/**`                                                           |
 | 0.2 | Draw a flow diagram of how `TradingAgentsGraph.propagate()` calls each agent | `docs/propagate_flow_diagram.html`                                           |
-| 0.3 | Document what each agent returns (format, fields, meaning)                   | `docs/tradingAgents.md`                                                      |
 | 0.4 | Map all data API calls and endpoints used across dataflows                   | `docs/design_reference.md`                                                   |
 | 0.5 | Review all config options in `default_config.py`                             | `tradingagents/default_config.py`                                            |
 | 0.6 | Run `main.py` and `test.py` end-to-end in your environment                   | `main.py`, `test.py`                                                         |
@@ -60,26 +59,12 @@ For code snippets, schemas, and architecture patterns see [design_reference.md](
 
 | #    | Task                                                                             | Files                                       |
 | ---- | -------------------------------------------------------------------------------- | ------------------------------------------- |
-| 0.8  | Add type hints and docstrings to functions missing them                          | `tradingagents/**`                          |
-| 0.9  | Create `docs/agent_contracts.md` documenting each agent's I/O schema             | `docs/agent_contracts.md`                   |
-| 0.10 | Set up `pytest` with a conftest and one smoke test per agent                     | `tests/conftest.py`, `tests/test_agents.py` |
-| 0.11 | Create `dev` branch — all new work goes there, only tested code merges to `main` | git                                         |
-| 0.12 | Replace all `print()` with Python `logging` module calls                         | `tradingagents/**`                          |
-| 0.13 | Pin all dependency versions in `requirements.txt`                                | `requirements.txt`                          |
-| 0.14 | Update `docs/architecture.md` with your flow diagram from 0.2                    | `docs/architecture.md`                      |
+| 0.10 | Create `dev` branch — all new work goes there, only tested code merges to `main` | git                                         |
 
 ### Decision Points (resolve before moving on)
 
 - Choose LLM provider for production (recommendation: Claude Sonnet for analysts, reasoning model for Trader/Risk Manager)
 - Choose broker for paper trading (recommendation: Alpaca — free paper API, full NYSE/NASDAQ, fractional shares)
-
-### Definition of Done
-
-- You can run `main.py` cleanly and get a trading decision for any ticker
-- `pytest` passes with at least one test per agent
-- `docs/architecture.md` and `docs/agent_contracts.md` exist and are accurate
-- All dependencies are pinned
-- Logging works (no raw print statements)
 
 ---
 
@@ -104,13 +89,6 @@ For code snippets, schemas, and architecture patterns see [design_reference.md](
 
 See [design_reference.md — Watchlist Design](design_reference.md#watchlist-design) and [Data Source Strategy](design_reference.md#data-source-strategy) for details.
 
-### Definition of Done
-
-- `propagate()` works on 10+ tickers with no data errors
-- API failure gracefully falls back to yfinance
-- Watchlist JSON exists with ~36 tickers
-- API calls are cached so a second run is instant
-
 ---
 
 ## Phase 2 — Paper Trading Execution Layer
@@ -134,13 +112,6 @@ See [design_reference.md — Watchlist Design](design_reference.md#watchlist-des
 | 2.11 | Run 10 paper trades end-to-end, inspect results in DB                           | manual                                                                     |
 
 See [design_reference.md — Execution Layer Architecture](design_reference.md#execution-layer-architecture), [Broker Interface](design_reference.md#broker-interface), [Position Sizing Formula](design_reference.md#position-sizing-formula), and [Database Schema](design_reference.md#database-schema) for implementation details.
-
-### Definition of Done
-
-- Running `propagate()` on a ticker results in a paper trade being recorded in SQLite
-- `PaperBroker` and `AlpacaBroker` both pass the same test suite
-- 10 paper trades executed end-to-end with no errors
-- Position records visible in the database
 
 ---
 
@@ -171,13 +142,6 @@ See [design_reference.md — Execution Layer Architecture](design_reference.md#e
 
 See [design_reference.md — Conviction Scoring Design](design_reference.md#conviction-scoring-design), [Auto-Buy Rules](design_reference.md#auto-buy-rules), and [Agent Prompt Additions](design_reference.md#agent-prompt-additions) for implementation details.
 
-### Definition of Done
-
-- Every `propagate()` call outputs a conviction score
-- Trades only fire when conviction exceeds threshold AND 3+ agents agree
-- All signals are logged to the `signals` table (bought, skipped, or rejected)
-- Dry-run mode works
-
 ---
 
 ## Phase 4 — Position Monitoring and Auto-Exit
@@ -202,14 +166,6 @@ See [design_reference.md — Conviction Scoring Design](design_reference.md#conv
 | 4.12 | Run paper trading for 2 weeks, verify exits fire correctly                                | manual                                  |
 
 See [design_reference.md — Exit Conditions and Rules](design_reference.md#exit-conditions-and-rules), [Monitor Loop](design_reference.md#monitor-loop), [Trailing Stop Implementation](design_reference.md#trailing-stop-implementation), and [Reversal Detection](design_reference.md#reversal-detection) for implementation details.
-
-### Definition of Done
-
-- Monitor loop runs continuously during market hours
-- Each exit rule fires correctly when its condition is met
-- All exits are logged with reason
-- Telegram alerts work
-- 2 weeks of paper trading with no missed exits
 
 ---
 
@@ -242,13 +198,6 @@ See [design_reference.md — Exit Conditions and Rules](design_reference.md#exit
 
 See [design_reference.md — Portfolio Guard Design](design_reference.md#portfolio-guard-design) for implementation details.
 
-### Definition of Done
-
-- All guard rules pass tests
-- 11th position attempt is blocked when 10 are open
-- Daily loss limit halts buying
-- Portfolio snapshots are recorded daily
-
 ---
 
 ## Phase 6 — Dashboard and Observability *(Your Main Interface)*
@@ -271,13 +220,6 @@ See [design_reference.md — Portfolio Guard Design](design_reference.md#portfol
 | 6.10 | Test: run dashboard locally alongside paper trading loop                                 | manual                               |
 
 See [design_reference.md — Dashboard Specs](design_reference.md#dashboard-specs) for page layouts.
-
-### Definition of Done
-
-- Dashboard runs locally and shows live portfolio data
-- All 4 pages render correctly
-- Auto-refresh works
-- Pause toggle actually stops the trading loop
 
 ---
 
@@ -303,13 +245,6 @@ See [design_reference.md — Dashboard Specs](design_reference.md#dashboard-spec
 | 6B.12 | Wire engine to read from `user_config.json` at runtime instead of hardcoded config values      | `execution/order_manager.py`, `portfolio/conviction_gate.py`   |
 | 6B.13 | Add "Reset to defaults" button                                                                 | `dashboard/app.py`                                             |
 | 6B.14 | Test: change conviction threshold in UI, verify engine respects new value without restart      | manual                                                         |
-
-### Definition of Done
-
-- All risk parameters are adjustable from the dashboard with no code changes
-- Settings persist across restarts via `user_config.json`
-- Engine reads config at runtime — changes take effect on next analysis cycle
-- "Reset to defaults" restores safe baseline values
 
 ---
 
@@ -358,13 +293,6 @@ Win rate: 67% (all-time)
 Best: MSFT +11.2% | Worst: META -4.1%
 ```
 
-### Definition of Done
-
-- Bot created and sending messages to your Telegram chat
-- All 5 alert types fire correctly in paper trading
-- Weekly digest arrives Sunday evening
-- Notification toggles work in the dashboard
-
 ---
 
 # Milestone v1.0 — Live Trading
@@ -400,13 +328,6 @@ Best: MSFT +11.2% | Worst: META -4.1%
 | 7.5 | Month 3+: increase to target capital, weekly agent review, monthly threshold recalibration    | Risk Config UI                   |
 
 See [design_reference.md — Broker Setup Commands](design_reference.md#broker-setup-commands) and [US Regulatory Note](design_reference.md#us-regulatory-note) for broker details and PDT rules.
-
-### Definition of Done
-
-- Live trades execute and match paper trading behavior
-- No execution errors in first week
-- Profitable or at least not losing beyond daily limits
-- Telegram alerts firing in real time on your phone
 
 ---
 
