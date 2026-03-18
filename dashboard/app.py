@@ -29,6 +29,9 @@ from datetime import datetime, timezone, timedelta
 from database.db import Database
 from database.models import Position
 from portfolio.portfolio_guard import PortfolioGuard
+from config.config_manager import (
+    ConfigManager, DEFAULT_CONFIG, SLIDER_RANGES, LABELS, DESCRIPTIONS,
+)
 
 # ── App config ───────────────────────────────────────────────────────
 
@@ -49,9 +52,15 @@ def get_db():
 
 
 @st.cache_resource
+def get_config_manager():
+    """Singleton config manager."""
+    return ConfigManager()
+
+
 def get_guard():
-    """Singleton portfolio guard for summary."""
+    """Portfolio guard using current config values."""
     db = get_db()
+    cfg = get_config_manager().load()
     sector_map_path = os.path.join(_PROJECT_ROOT, "watchlist", "sector_map.json")
     try:
         with open(sector_map_path, "r") as f:
@@ -59,7 +68,15 @@ def get_guard():
     except (FileNotFoundError, json.JSONDecodeError):
         sector_map = {}
 
-    return PortfolioGuard(db=db, sector_map=sector_map)
+    return PortfolioGuard(
+        db=db,
+        sector_map=sector_map,
+        max_positions=cfg.get("max_positions", 10),
+        max_sector_exposure=cfg.get("max_sector_exposure_pct", 30.0) / 100.0,
+        max_single_position=cfg.get("risk_per_trade_pct", 5.0) / 100.0,
+        daily_loss_limit=-(cfg.get("daily_loss_limit_pct", 3.0) / 100.0),
+        cash_reserve=cfg.get("cash_reserve_pct", 10.0) / 100.0,
+    )
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────
@@ -74,6 +91,7 @@ page = st.sidebar.radio(
         "📡 Signal Feed",
         "📈 Trade History",
         "🤖 Agent Monitor",
+        "⚙️ Risk Settings",
     ],
 )
 
@@ -638,6 +656,112 @@ def page_agent_monitor():
 
 
 # =====================================================================
+# Page 5: Risk Settings
+# =====================================================================
+
+def page_risk_settings():
+    st.title("⚙️ Risk Settings")
+    st.markdown(
+        "Tune your risk parameters without touching code. "
+        "Changes take effect on the **next trade evaluation** — no restart needed."
+    )
+
+    cm = get_config_manager()
+    cfg = cm.load()
+
+    st.markdown("---")
+
+    # ── Group 1: Position & Portfolio Limits ──────────────────────
+    st.subheader("Position & Portfolio Limits")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        cfg["capital_deployed_pct"] = _config_slider("capital_deployed_pct", cfg)
+        cfg["max_positions"] = _config_slider("max_positions", cfg)
+        cfg["risk_per_trade_pct"] = _config_slider("risk_per_trade_pct", cfg)
+
+    with col2:
+        cfg["max_sector_exposure_pct"] = _config_slider("max_sector_exposure_pct", cfg)
+        cfg["cash_reserve_pct"] = _config_slider("cash_reserve_pct", cfg)
+        cfg["daily_loss_limit_pct"] = _config_slider("daily_loss_limit_pct", cfg)
+
+    st.markdown("---")
+
+    # ── Group 2: Entry Rules ──────────────────────────────────────
+    st.subheader("Entry Rules (Conviction Gate)")
+    col3, col4 = st.columns(2)
+
+    with col3:
+        cfg["conviction_threshold"] = _config_slider("conviction_threshold", cfg)
+        cfg["min_agents_agree"] = _config_slider("min_agents_agree", cfg)
+
+    with col4:
+        cfg["cooldown_hours"] = _config_slider("cooldown_hours", cfg)
+
+    st.markdown("---")
+
+    # ── Group 3: Exit Rules ───────────────────────────────────────
+    st.subheader("Exit Rules")
+    col5, col6 = st.columns(2)
+
+    with col5:
+        cfg["stop_loss_pct"] = _config_slider("stop_loss_pct", cfg)
+        cfg["profit_target_pct"] = _config_slider("profit_target_pct", cfg)
+
+    with col6:
+        cfg["trailing_stop_pct"] = _config_slider("trailing_stop_pct", cfg)
+        cfg["max_hold_days"] = _config_slider("max_hold_days", cfg)
+
+    st.markdown("---")
+
+    # ── Save / Reset buttons ──────────────────────────────────────
+    btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 3])
+
+    with btn_col1:
+        if st.button("💾 Save Settings", type="primary", use_container_width=True):
+            errors = cm.validate(cfg)
+            if errors:
+                for e in errors:
+                    st.error(e)
+            else:
+                cm.save(cfg)
+                # Log the config change
+                db.log("INFO", "CONFIG_CHANGE", json.dumps(cfg))
+                st.success("Settings saved! Changes take effect on the next trade evaluation.")
+
+    with btn_col2:
+        if st.button("🔄 Reset to Defaults", use_container_width=True):
+            cfg = cm.reset_to_defaults()
+            db.log("INFO", "CONFIG_RESET", "Reset to factory defaults")
+            st.success("Settings reset to defaults.")
+            st.rerun()
+
+    # ── Current config summary ────────────────────────────────────
+    with st.expander("📋 Current Config (JSON)"):
+        st.json(cfg)
+
+
+def _config_slider(key: str, cfg: dict) -> Any:
+    """Render a labeled slider for a config key."""
+    lo, hi, step = SLIDER_RANGES[key]
+    label = LABELS[key]
+    help_text = DESCRIPTIONS.get(key, "")
+    current = cfg.get(key, DEFAULT_CONFIG[key])
+
+    # Clamp current value to valid range
+    current = max(lo, min(hi, current))
+
+    # Use int slider for int-valued params
+    if isinstance(lo, int) and isinstance(step, int):
+        return st.slider(label, min_value=lo, max_value=hi, value=int(current),
+                         step=step, help=help_text, key=f"slider_{key}")
+    else:
+        return st.slider(label, min_value=float(lo), max_value=float(hi),
+                         value=float(current), step=float(step),
+                         help=help_text, key=f"slider_{key}")
+
+
+# =====================================================================
 # Page Router
 # =====================================================================
 
@@ -649,6 +773,8 @@ elif page == "📈 Trade History":
     page_trade_history()
 elif page == "🤖 Agent Monitor":
     page_agent_monitor()
+elif page == "⚙️ Risk Settings":
+    page_risk_settings()
 
 
 # ── Auto-refresh via st.rerun ────────────────────────────────────────

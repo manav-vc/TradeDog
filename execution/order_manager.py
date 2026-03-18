@@ -20,6 +20,7 @@ from portfolio.position_sizer import calculate_position_size
 from portfolio.conviction_scorer import score_from_state, ConvictionResult
 from portfolio.conviction_gate import ConvictionGate, GateResult
 from portfolio.portfolio_guard import PortfolioGuard
+from config.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class OrderManager:
         portfolio_guard: Optional[PortfolioGuard] = None,
         scoring_mode: str = "heuristic",
         scoring_llm=None,
+        config_manager: Optional[ConfigManager] = None,
     ):
         self.broker = broker
         self.db = db or Database()
@@ -46,6 +48,36 @@ class OrderManager:
         self.portfolio_guard = portfolio_guard
         self.scoring_mode = scoring_mode
         self.scoring_llm = scoring_llm
+        self.config_manager = config_manager
+
+    def _apply_live_config(self) -> None:
+        """
+        Hot-reload config values from user_config.json into gate/guard.
+
+        Called before each trade evaluation so UI changes take effect
+        without an engine restart.
+        """
+        if self.config_manager is None:
+            return
+        cfg = self.config_manager.load()
+
+        # Update position sizing
+        self.max_position_pct = cfg.get("risk_per_trade_pct", 5.0) / 100.0
+
+        # Update conviction gate thresholds
+        if self.conviction_gate is not None:
+            self.conviction_gate.buy_threshold = float(cfg.get("conviction_threshold", 65))
+            self.conviction_gate.max_positions = int(cfg.get("max_positions", 10))
+            self.conviction_gate.min_agents_agree = int(cfg.get("min_agents_agree", 3))
+            self.conviction_gate.cooldown_hours = int(cfg.get("cooldown_hours", 24))
+
+        # Update portfolio guard limits
+        if self.portfolio_guard is not None:
+            self.portfolio_guard.max_positions = int(cfg.get("max_positions", 10))
+            self.portfolio_guard.max_sector_exposure = cfg.get("max_sector_exposure_pct", 30.0) / 100.0
+            self.portfolio_guard.max_single_position = cfg.get("risk_per_trade_pct", 5.0) / 100.0
+            self.portfolio_guard.daily_loss_limit = -(cfg.get("daily_loss_limit_pct", 3.0) / 100.0)
+            self.portfolio_guard.cash_reserve = cfg.get("cash_reserve_pct", 10.0) / 100.0
 
     def process_decision(
         self,
@@ -66,6 +98,8 @@ class OrderManager:
         Returns:
             Order if a trade was executed, None otherwise.
         """
+        self._apply_live_config()
+
         parsed = self._parse_decision(decision)
         state_json = None
         if full_state:
@@ -119,6 +153,8 @@ class OrderManager:
         Returns:
             Order if trade was executed, None otherwise.
         """
+        self._apply_live_config()
+
         # Step 1: Score conviction from the full state
         conviction = score_from_state(
             full_state, mode=self.scoring_mode, llm=self.scoring_llm
