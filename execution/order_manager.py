@@ -17,6 +17,8 @@ from database.db import Database
 from database.models import Order
 from execution.broker_interface import BrokerInterface
 from portfolio.position_sizer import calculate_position_size
+from portfolio.conviction_scorer import score_from_state, ConvictionResult
+from portfolio.conviction_gate import ConvictionGate, GateResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +32,17 @@ class OrderManager:
         db: Optional[Database] = None,
         dry_run: bool = False,
         max_position_pct: float = 0.05,
+        conviction_gate: Optional[ConvictionGate] = None,
+        scoring_mode: str = "heuristic",
+        scoring_llm=None,
     ):
         self.broker = broker
         self.db = db or Database()
         self.dry_run = dry_run
         self.max_position_pct = max_position_pct
+        self.conviction_gate = conviction_gate
+        self.scoring_mode = scoring_mode
+        self.scoring_llm = scoring_llm
 
     def process_decision(
         self,
@@ -84,6 +92,166 @@ class OrderManager:
                 full_state_json=state_json,
             )
             logger.info(f"{ticker}: HOLD — no action taken")
+            return None
+
+    def process_with_conviction(
+        self,
+        ticker: str,
+        trade_date: str,
+        full_state: dict,
+        decision: str,
+    ) -> Optional[Order]:
+        """
+        Process a propagate() result through conviction scoring + gate.
+
+        This is the Phase 3+ entry point. Uses the full agent state to
+        compute conviction scores, then checks the gate before executing.
+
+        Args:
+            ticker: Stock ticker
+            trade_date: Analysis date
+            full_state: Full state dict from propagate()
+            decision: Raw decision text from SignalProcessor
+
+        Returns:
+            Order if trade was executed, None otherwise.
+        """
+        # Step 1: Score conviction from the full state
+        conviction = score_from_state(
+            full_state, mode=self.scoring_mode, llm=self.scoring_llm
+        )
+        conviction.ticker = ticker
+
+        state_json = self._serialize_state(full_state)
+
+        # Step 2: Run conviction gate (if configured)
+        if self.conviction_gate is not None:
+            positions = self.broker.get_positions()
+            gate_result = self.conviction_gate.check(conviction, positions)
+
+            if not gate_result.allowed:
+                action = "REJECTED_BY_GATE"
+                self.db.insert_signal(
+                    ticker=ticker, trade_date=trade_date,
+                    agent_decision=decision,
+                    parsed_action=conviction.decision,
+                    action_taken=action,
+                    skip_reason=gate_result.reason,
+                    conviction_score=conviction.composite_score,
+                    full_state_json=state_json,
+                )
+                logger.info(
+                    f"{ticker}: BLOCKED by gate — {gate_result.reason} "
+                    f"(conviction={conviction.composite_score:.1f})"
+                )
+                return None
+
+        # Step 3: Gate passed (or no gate) — route to execution
+        # Use conviction's decision (derived from reports) instead of raw text
+        parsed = conviction.decision
+
+        if parsed == "HOLD":
+            self.db.insert_signal(
+                ticker=ticker, trade_date=trade_date,
+                agent_decision=decision, parsed_action=parsed,
+                action_taken="SKIPPED",
+                skip_reason="HOLD after conviction scoring",
+                conviction_score=conviction.composite_score,
+                full_state_json=state_json,
+            )
+            return None
+
+        if parsed == "SELL":
+            return self._handle_sell(ticker, trade_date, decision, parsed, state_json)
+
+        # BUY — use conviction score for position sizing
+        return self._handle_buy_with_conviction(
+            ticker, trade_date, decision, parsed, state_json, conviction
+        )
+
+    def _handle_buy_with_conviction(
+        self, ticker: str, trade_date: str, decision: str,
+        parsed: str, state_json: Optional[str],
+        conviction: ConvictionResult,
+    ) -> Optional[Order]:
+        """Execute a BUY with conviction-scaled position sizing."""
+        existing = [p for p in self.broker.get_positions() if p.ticker == ticker]
+        if existing:
+            self.db.insert_signal(
+                ticker=ticker, trade_date=trade_date,
+                agent_decision=decision, parsed_action=parsed,
+                action_taken="SKIPPED",
+                skip_reason=f"Already holding {ticker}",
+                conviction_score=conviction.composite_score,
+                full_state_json=state_json,
+            )
+            return None
+
+        account = self.broker.get_account()
+        price = self.broker.get_current_price(ticker)
+
+        # Scale position size by conviction (0-100 → 0.0-1.0)
+        conviction_factor = conviction.composite_score / 100.0
+        qty = calculate_position_size(
+            account_value=account.total_value,
+            price=price,
+            max_position_pct=self.max_position_pct,
+            conviction_score=conviction_factor,
+        )
+
+        if qty <= 0:
+            self.db.insert_signal(
+                ticker=ticker, trade_date=trade_date,
+                agent_decision=decision, parsed_action=parsed,
+                action_taken="SKIPPED",
+                skip_reason="Position size calculated as 0 shares",
+                conviction_score=conviction.composite_score,
+                full_state_json=state_json,
+            )
+            return None
+
+        if self.dry_run:
+            self.db.insert_signal(
+                ticker=ticker, trade_date=trade_date,
+                agent_decision=decision, parsed_action=parsed,
+                action_taken="DRY_RUN",
+                skip_reason=f"Would buy {qty} shares @ ~${price:.2f} (conviction={conviction.composite_score:.1f})",
+                conviction_score=conviction.composite_score,
+                full_state_json=state_json,
+            )
+            logger.info(
+                f"{ticker}: DRY RUN — {qty} shares @ ${price:.2f} "
+                f"(conviction={conviction.composite_score:.1f})"
+            )
+            return None
+
+        order = self.broker.place_market_buy(ticker, qty)
+        action = "BOUGHT" if order.status == "FILLED" else "REJECTED"
+        self.db.insert_signal(
+            ticker=ticker, trade_date=trade_date,
+            agent_decision=decision, parsed_action=parsed,
+            action_taken=action,
+            skip_reason=None if action == "BOUGHT" else f"Order {order.status}",
+            conviction_score=conviction.composite_score,
+            full_state_json=state_json,
+        )
+        logger.info(
+            f"{ticker}: {action} — {qty} shares @ ${order.filled_price or price:.2f} "
+            f"(conviction={conviction.composite_score:.1f})"
+        )
+        return order
+
+    def _serialize_state(self, full_state: Optional[dict]) -> Optional[str]:
+        """Safely serialize state dict to JSON."""
+        if not full_state:
+            return None
+        try:
+            serializable = {
+                k: v for k, v in full_state.items()
+                if isinstance(v, (str, int, float, bool, list, dict, type(None)))
+            }
+            return json.dumps(serializable, default=str)
+        except (TypeError, ValueError):
             return None
 
     def _handle_buy(
