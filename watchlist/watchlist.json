@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "description": "TradeDog starter watchlist — ~36 high-liquidity NYSE/NASDAQ tickers across sectors",
+  "tickers": {
+    "Technology": ["AAPL", "MSFT", "NVDA", "GOOG", "META", "AVGO"],
+    "Consumer Discretionary": ["AMZN", "TSLA", "HD", "NKE"],
+    "Financials": ["JPM", "V", "MA", "GS"],
+    "Healthcare": ["UNH", "JNJ", "LLY", "ABBV"],
+    "Communication Services": ["NFLX", "DIS", "CMCSA"],
+    "Industrials": ["CAT", "UNP", "HON", "GE"],
+    "Energy": ["XOM", "CVX", "COP"],
+    "Consumer Staples": ["PG", "KO", "COST"],
+    "Materials": ["LIN", "APD"],
+    "Utilities": ["NEE", "DUK"],
+    "Real Estate": ["AMT", "PLD"]
+  },
+  "filters": {
+    "min_avg_volume": 1000000,
+    "min_market_cap_billions": 10
+  }
+}

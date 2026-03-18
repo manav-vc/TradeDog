@@ -7,6 +7,8 @@ For code snippets, schemas, and architecture patterns see [design_reference.md](
 
 > **Scope decision (v2):** This platform is built for personal use only — one user, one brokerage account, runs locally. No auth, no KYC, no payment rails, no RIA registration required. The dashboard IS the product.
 
+> **Build-on-top rule:** The existing TradingAgents framework (`tradingagents/`) is treated as a dependency — never modify its code. All new functionality is built in separate modules that import from and wrap the framework. This keeps the upstream codebase clean and makes it easy to pull in future updates.
+
 ---
 
 ## What You Already Have
@@ -30,7 +32,7 @@ For code snippets, schemas, and architecture patterns see [design_reference.md](
 
 **What's missing:** Tests, execution layer, auto-buy logic, exit/monitoring loop, position tracking, conviction scoring, risk config UI, dashboard, and notifications.
 
-**What exists but needs hardening:** Data validation, logging (still uses print), dependency pinning.
+**Not in scope:** Modifying anything inside `tradingagents/`. The framework's data layer, logging, and dependencies are used as-is. All new work is built on top.
 
 ---
 
@@ -68,26 +70,20 @@ For code snippets, schemas, and architecture patterns see [design_reference.md](
 
 ---
 
-## Phase 1 — Data Layer Hardening + Watchlist
+## Phase 1 — Watchlist + Integration Tests
 
-**Goal:** Make the data layer robust and production-grade. Reliable, clean OHLCV and fundamental data before any money touches the system.
+**Goal:** Build the watchlist module and validate that the existing data layer works reliably across tickers. No changes to `tradingagents/` — just build on top and test what's already there.
 
 **Prereqs:** Phase 0 complete
 
-| #    | Task                                                                                        | Files                                     |
-| ---- | ------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 1.1  | Add yfinance as a fallback in `dataflows/` — if primary source errors, fall through         | `tradingagents/dataflows/interface.py`    |
-| 1.2  | Add rate limit handling and retry logic for API calls                                       | `tradingagents/dataflows/interface.py`    |
-| 1.3  | Create a `MarketData` dataclass — standardized OHLCV format used by all agents              | `tradingagents/dataflows/models.py` (new) |
-| 1.4  | Add data validation — reject and log any ticker returning incomplete data                   | `tradingagents/dataflows/interface.py`    |
-| 1.5  | Add disk caching for API responses (pickle or SQLite) so re-runs don't re-hit APIs          | `tradingagents/dataflows/`                |
-| 1.6  | Create `watchlist/watchlist.json` with starter tickers (~36 across sectors)                 | `watchlist/watchlist.json` (new)          |
-| 1.7  | Implement liquidity filter (min volume + min market cap)                                    | `watchlist/filters.py` (new)              |
-| 1.8  | Test: run `propagate()` on 10 tickers, verify clean data with no empty fields or NaN prices | `tests/test_data_layer.py` (new)          |
-| 1.9  | Test: simulate API failure and verify fallback activates                                    | `tests/test_data_layer.py`                |
-| 1.10 | Log API call counts per run to estimate monthly costs                                       | `tradingagents/dataflows/`                |
+| #   | Task                                                                                        | Files                            |
+| --- | ------------------------------------------------------------------------------------------- | -------------------------------- |
+| 1.1 | Create `watchlist/watchlist.json` with starter tickers (~36 across sectors)                 | `watchlist/watchlist.json` (new) |
+| 1.2 | Implement liquidity filter (min volume + min market cap)                                    | `watchlist/filters.py` (new)     |
+| 1.3 | Test: run `propagate()` on 10 tickers, verify clean data with no empty fields or NaN prices | `tests/test_data_layer.py` (new) |
+| 1.4 | Test: simulate API failure and verify existing fallback behavior                            | `tests/test_data_layer.py`       |
 
-See [design_reference.md — Watchlist Design](design_reference.md#watchlist-design) and [Data Source Strategy](design_reference.md#data-source-strategy) for details.
+See [design_reference.md — Watchlist Design](design_reference.md#watchlist-design) for details.
 
 ---
 
@@ -366,11 +362,9 @@ See [design_reference.md — Broker Setup Commands](design_reference.md#broker-s
 
 ```
 TradeDog/
-├── tradingagents/              ← Upstream framework (minimal changes)
+├── tradingagents/              ← Upstream framework (DO NOT MODIFY)
 │   ├── agents/
 │   ├── dataflows/
-│   │   ├── yfinance_fallback.py    ← NEW: Fallback when FinnHub fails
-│   │   └── data_validator.py       ← NEW: Validates data quality
 │   ├── graph/trading_graph.py
 │   └── default_config.py
 │
@@ -445,7 +439,7 @@ TradeDog/
 | Phase  | Focus                        |
 | ------ | ---------------------------- |
 | **0**  | Audit & cleanup              |
-| **1**  | Data hardening + watchlist   |
+| **1**  | Watchlist + integration tests |
 | **2**  | Paper trading execution      |
 | **3**  | Conviction scoring           |
 | **4**  | Position monitoring          |
