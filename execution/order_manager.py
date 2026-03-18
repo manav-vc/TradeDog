@@ -19,6 +19,7 @@ from execution.broker_interface import BrokerInterface
 from portfolio.position_sizer import calculate_position_size
 from portfolio.conviction_scorer import score_from_state, ConvictionResult
 from portfolio.conviction_gate import ConvictionGate, GateResult
+from portfolio.portfolio_guard import PortfolioGuard
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class OrderManager:
         dry_run: bool = False,
         max_position_pct: float = 0.05,
         conviction_gate: Optional[ConvictionGate] = None,
+        portfolio_guard: Optional[PortfolioGuard] = None,
         scoring_mode: str = "heuristic",
         scoring_llm=None,
     ):
@@ -41,6 +43,7 @@ class OrderManager:
         self.dry_run = dry_run
         self.max_position_pct = max_position_pct
         self.conviction_gate = conviction_gate
+        self.portfolio_guard = portfolio_guard
         self.scoring_mode = scoring_mode
         self.scoring_llm = scoring_llm
 
@@ -210,6 +213,14 @@ class OrderManager:
             )
             return None
 
+        # Portfolio guard check (Phase 5)
+        proposed_cost = price * qty
+        if self._run_portfolio_guard(
+            ticker, trade_date, decision, parsed, state_json,
+            proposed_cost, conviction.composite_score,
+        ):
+            return None  # Blocked by portfolio guard
+
         if self.dry_run:
             self.db.insert_signal(
                 ticker=ticker, trade_date=trade_date,
@@ -291,6 +302,13 @@ class OrderManager:
             )
             return None
 
+        # Portfolio guard check (Phase 5)
+        proposed_cost = price * qty
+        if self._run_portfolio_guard(
+            ticker, trade_date, decision, parsed, state_json, proposed_cost,
+        ):
+            return None  # Blocked by portfolio guard
+
         if self.dry_run:
             self.db.insert_signal(
                 ticker=ticker, trade_date=trade_date,
@@ -315,6 +333,37 @@ class OrderManager:
         )
         logger.info(f"{ticker}: {action} — {qty} shares @ ${order.filled_price or price:.2f}")
         return order
+
+    def _run_portfolio_guard(
+        self, ticker: str, trade_date: str, decision: str,
+        parsed: str, state_json: Optional[str],
+        proposed_cost: float, conviction_score: Optional[float] = None,
+    ) -> Optional[None]:
+        """
+        Run portfolio guard if configured. Returns None if guard passes,
+        or a sentinel None (after logging) if blocked.
+
+        Returns:
+            None if guard passes (caller should continue).
+            A "marker" value if blocked (caller should return None).
+        """
+        if self.portfolio_guard is None:
+            return None  # No guard — pass through
+
+        guard_result = self.portfolio_guard.can_open_position(ticker, proposed_cost)
+        if not guard_result.allowed:
+            self.db.insert_signal(
+                ticker=ticker, trade_date=trade_date,
+                agent_decision=decision, parsed_action=parsed,
+                action_taken="REJECTED_BY_GUARD",
+                skip_reason=f"Portfolio guard: {guard_result.reason}",
+                conviction_score=conviction_score,
+                full_state_json=state_json,
+            )
+            logger.info(f"{ticker}: BLOCKED by portfolio guard — {guard_result.reason}")
+            return "BLOCKED"  # Non-None sentinel to signal caller to return
+
+        return None  # Pass through
 
     def _handle_sell(
         self, ticker: str, trade_date: str, decision: str,
