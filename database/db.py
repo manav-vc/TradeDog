@@ -228,6 +228,20 @@ class Database:
         )
         self.conn.commit()
 
+    # ── Trading Pause ──────────────────────────────────────────────
+
+    def is_trading_paused(self) -> bool:
+        """Check if trading is paused (set via dashboard toggle)."""
+        row = self.conn.execute(
+            "SELECT message FROM system_log WHERE component = 'TRADING_PAUSE' "
+            "ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return row["message"] == "PAUSED" if row else False
+
+    def set_trading_paused(self, paused: bool) -> None:
+        """Set the trading pause flag."""
+        self.log("INFO", "TRADING_PAUSE", "PAUSED" if paused else "ACTIVE")
+
     # ── Portfolio Snapshots ───────────────────────────────────────────
 
     def save_snapshot(
