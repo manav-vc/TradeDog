@@ -157,18 +157,21 @@ class TestValidation(unittest.TestCase):
 
 
 class TestMetadata(unittest.TestCase):
-    """Test that all config keys have labels, descriptions, and ranges."""
+    """Test that all scalar config keys have labels, descriptions, and ranges."""
+
+    # notification_toggles is a nested dict, not a slider param — skip it
+    _SCALAR_KEYS = [k for k in DEFAULT_CONFIG if not isinstance(DEFAULT_CONFIG[k], dict)]
 
     def test_all_keys_have_labels(self):
-        for key in DEFAULT_CONFIG:
+        for key in self._SCALAR_KEYS:
             self.assertIn(key, LABELS, f"Missing label for {key}")
 
     def test_all_keys_have_descriptions(self):
-        for key in DEFAULT_CONFIG:
+        for key in self._SCALAR_KEYS:
             self.assertIn(key, DESCRIPTIONS, f"Missing description for {key}")
 
     def test_all_keys_have_slider_ranges(self):
-        for key in DEFAULT_CONFIG:
+        for key in self._SCALAR_KEYS:
             self.assertIn(key, SLIDER_RANGES, f"Missing slider range for {key}")
 
     def test_slider_ranges_are_tuples_of_3(self):

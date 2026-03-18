@@ -11,5 +11,13 @@
   "max_sector_exposure_pct": 30.0,
   "cash_reserve_pct": 10.0,
   "min_agents_agree": 3,
-  "cooldown_hours": 24
+  "cooldown_hours": 24,
+  "notification_toggles": {
+    "trade_opened": true,
+    "trade_closed": true,
+    "guard_blocked": true,
+    "daily_loss": true,
+    "engine_error": true,
+    "weekly_digest": true
+  }
 }

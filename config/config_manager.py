@@ -34,6 +34,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "cash_reserve_pct": 10.0,           # always keep X% in cash (5-30)
     "min_agents_agree": 3,              # min agents for BUY (2-4)
     "cooldown_hours": 24,               # hours between same-ticker trades (0-72)
+    "notification_toggles": {           # which Telegram alerts to send
+        "trade_opened": True,
+        "trade_closed": True,
+        "guard_blocked": True,
+        "daily_loss": True,
+        "engine_error": True,
+        "weekly_digest": True,
+    },
 }
 
 # ── Slider ranges for the dashboard UI ──────────────────────────────

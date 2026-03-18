@@ -25,6 +25,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timezone, timedelta
+from typing import Any
 
 from database.db import Database
 from database.models import Position
@@ -711,6 +712,48 @@ def page_risk_settings():
     with col6:
         cfg["trailing_stop_pct"] = _config_slider("trailing_stop_pct", cfg)
         cfg["max_hold_days"] = _config_slider("max_hold_days", cfg)
+
+    st.markdown("---")
+
+    # ── Group 4: Notification Toggles (Phase 6C) ─────────────────
+    st.subheader("Telegram Notifications")
+    st.caption(
+        "Control which alerts get sent to your Telegram. "
+        "Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env."
+    )
+
+    toggles = cfg.get("notification_toggles", {})
+    notif_col1, notif_col2, notif_col3 = st.columns(3)
+
+    with notif_col1:
+        toggles["trade_opened"] = st.checkbox(
+            "Trade Opened", value=toggles.get("trade_opened", True),
+            key="notif_trade_opened",
+        )
+        toggles["trade_closed"] = st.checkbox(
+            "Trade Closed", value=toggles.get("trade_closed", True),
+            key="notif_trade_closed",
+        )
+    with notif_col2:
+        toggles["guard_blocked"] = st.checkbox(
+            "Guard Blocked", value=toggles.get("guard_blocked", True),
+            key="notif_guard_blocked",
+        )
+        toggles["daily_loss"] = st.checkbox(
+            "Daily Loss Limit", value=toggles.get("daily_loss", True),
+            key="notif_daily_loss",
+        )
+    with notif_col3:
+        toggles["engine_error"] = st.checkbox(
+            "Engine Error", value=toggles.get("engine_error", True),
+            key="notif_engine_error",
+        )
+        toggles["weekly_digest"] = st.checkbox(
+            "Weekly Digest", value=toggles.get("weekly_digest", True),
+            key="notif_weekly_digest",
+        )
+
+    cfg["notification_toggles"] = toggles
 
     st.markdown("---")
 
